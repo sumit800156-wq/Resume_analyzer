@@ -12,6 +12,7 @@ from nltk.tokenize import word_tokenize
 
 # Download NLTK Resources
 nltk.download("punkt")
+nltk.download("punkt_tab)
 nltk.download("stopwords")
 
 # -------------------------
