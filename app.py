@@ -1,19 +1,10 @@
 import streamlit as st
 import PyPDF2
 import re
-import nltk
 
 from collections import Counter
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-
-# Download NLTK Resources
-nltk.download("punkt")
-nltk.download("punkt-tab")
-nltk.download("stopwords")
 
 # -------------------------
 # PAGE CONFIG
@@ -44,34 +35,15 @@ Upload your Resume PDF and compare it with a Job Description.
 # -------------------------
 
 def get_skills():
-
     return [
-        "python",
-        "java",
-        "sql",
-        "mysql",
-        "postgresql",
-        "html",
-        "css",
-        "javascript",
-        "react",
-        "django",
-        "flask",
-        "streamlit",
-        "numpy",
-        "pandas",
-        "tensorflow",
-        "machine learning",
-        "data science",
-        "git",
-        "github",
-        "docker",
-        "aws",
-        "api",
-        "fastapi",
-        "tableau",
-        "powerbi",
-        "excel"
+        "python", "java", "sql", "mysql", "postgresql",
+        "html", "css", "javascript", "react",
+        "django", "flask", "streamlit",
+        "numpy", "pandas", "tensorflow",
+        "machine learning", "data science",
+        "git", "github", "docker", "aws",
+        "api", "fastapi", "tableau",
+        "power bi", "excel"
     ]
 
 # -------------------------
@@ -79,24 +51,20 @@ def get_skills():
 # -------------------------
 
 def extract_text_from_pdf(uploaded_file):
-
     try:
-
         pdf_reader = PyPDF2.PdfReader(uploaded_file)
 
         text = ""
 
         for page in pdf_reader.pages:
-
             page_text = page.extract_text()
 
             if page_text:
-                text += page_text
+                text += page_text + " "
 
         return text
 
     except Exception as e:
-
         st.error(f"PDF Error: {e}")
         return ""
 
@@ -106,17 +74,17 @@ def extract_text_from_pdf(uploaded_file):
 
 def extract_contact_info(text):
 
-    email = re.findall(
+    emails = re.findall(
         r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
         text
     )
 
-    phone = re.findall(
+    phones = re.findall(
         r"\+?\d[\d\s\-]{8,15}",
         text
     )
 
-    return email, phone
+    return emails, phones
 
 # -------------------------
 # CLEAN TEXT
@@ -132,11 +100,13 @@ def clean_text(text):
         text
     )
 
-    words = word_tokenize(text)
+    stop_words = {
+        "a","an","the","and","or","is","are","was","were",
+        "in","on","at","to","for","of","with","by","from",
+        "as","that","this","it","be","will"
+    }
 
-    stop_words = set(
-        stopwords.words("english")
-    )
+    words = text.split()
 
     words = [
         word
@@ -155,21 +125,13 @@ def calculate_similarity(
     job_description
 ):
 
-    resume_processed = clean_text(
-        resume_text
-    )
-
-    jd_processed = clean_text(
-        job_description
-    )
+    resume_processed = clean_text(resume_text)
+    jd_processed = clean_text(job_description)
 
     vectorizer = TfidfVectorizer()
 
     tfidf = vectorizer.fit_transform(
-        [
-            resume_processed,
-            jd_processed
-        ]
+        [resume_processed, jd_processed]
     )
 
     similarity = cosine_similarity(
@@ -177,10 +139,7 @@ def calculate_similarity(
         tfidf[1:2]
     )[0][0]
 
-    return round(
-        similarity * 100,
-        2
-    )
+    return round(similarity * 100, 2)
 
 # -------------------------
 # SKILL MATCH
@@ -197,26 +156,22 @@ def get_skill_match(
     job_description = job_description.lower()
 
     resume_skills = [
-        skill
-        for skill in skills
+        skill for skill in skills
         if skill in resume_text
     ]
 
     jd_skills = [
-        skill
-        for skill in skills
+        skill for skill in skills
         if skill in job_description
     ]
 
     matched = list(
-        set(resume_skills)
-        &
+        set(resume_skills) &
         set(jd_skills)
     )
 
     missing = list(
-        set(jd_skills)
-        -
+        set(jd_skills) -
         set(resume_skills)
     )
 
@@ -232,29 +187,22 @@ def calculate_ats_score(
     missing
 ):
 
-    total_skills = (
-        len(matched)
-        +
-        len(missing)
-    )
+    total_skills = len(matched) + len(missing)
 
     if total_skills == 0:
         skill_score = 0
-
     else:
         skill_score = (
-            len(matched)
-            /
+            len(matched) /
             total_skills
         ) * 100
 
-    final_score = (
-        similarity * 0.6
-        +
+    ats_score = (
+        similarity * 0.6 +
         skill_score * 0.4
     )
 
-    return round(final_score, 2)
+    return round(ats_score, 2)
 
 # -------------------------
 # MISSING KEYWORDS
@@ -266,15 +214,11 @@ def get_missing_keywords(
 ):
 
     resume_words = set(
-        clean_text(
-            resume_text
-        ).split()
+        clean_text(resume_text).split()
     )
 
     jd_words = set(
-        clean_text(
-            job_description
-        ).split()
+        clean_text(job_description).split()
     )
 
     missing = list(
@@ -287,29 +231,16 @@ def get_missing_keywords(
 # RESUME SECTIONS
 # -------------------------
 
-def check_resume_sections(
-    resume_text
-):
+def check_resume_sections(text):
 
-    text = resume_text.lower()
+    text = text.lower()
 
     sections = {
-
-        "Education":
-        "education" in text,
-
-        "Skills":
-        "skills" in text,
-
-        "Projects":
-        "project" in text,
-
-        "Experience":
-        "experience" in text,
-
-        "Certifications":
-        "certification" in text
-
+        "Education": "education" in text,
+        "Skills": "skills" in text,
+        "Projects": "project" in text,
+        "Experience": "experience" in text,
+        "Certifications": "certification" in text
     }
 
     return sections
@@ -322,7 +253,7 @@ def extract_keywords(text):
 
     text = clean_text(text)
 
-    words = word_tokenize(text)
+    words = text.split()
 
     freq = Counter(words)
 
@@ -344,16 +275,10 @@ job_description = st.text_area(
 if st.button("Analyze Resume"):
 
     if uploaded_file is None:
-
-        st.warning(
-            "Please upload resume."
-        )
+        st.warning("Please upload a resume.")
 
     elif not job_description:
-
-        st.warning(
-            "Please enter Job Description."
-        )
+        st.warning("Please enter a Job Description.")
 
     else:
 
@@ -392,9 +317,7 @@ if st.button("Analyze Resume"):
 
         st.subheader("📊 ATS Score")
 
-        st.progress(
-            ats_score / 100
-        )
+        st.progress(ats_score / 100)
 
         st.metric(
             "ATS Score",
@@ -407,25 +330,24 @@ if st.button("Analyze Resume"):
 
         st.subheader("📧 Contact Information")
 
-        st.write(
-            "Emails:",
-            emails
-        )
-
-        st.write(
-            "Phones:",
-            phones
-        )
+        st.write("Emails:", emails)
+        st.write("Phones:", phones)
 
         st.subheader("✅ Matched Skills")
 
-        for skill in matched_skills:
-            st.success(skill)
+        if matched_skills:
+            for skill in matched_skills:
+                st.success(skill)
+        else:
+            st.warning("No matching skills found.")
 
         st.subheader("❌ Missing Skills")
 
-        for skill in missing_skills:
-            st.error(skill)
+        if missing_skills:
+            for skill in missing_skills:
+                st.error(skill)
+        else:
+            st.success("No missing skills.")
 
         st.subheader("🔑 Missing Keywords")
 
@@ -437,46 +359,35 @@ if st.button("Analyze Resume"):
         for section, present in resume_sections.items():
 
             if present:
-                st.success(
-                    f"✅ {section}"
-                )
-
+                st.success(f"✅ {section}")
             else:
-                st.error(
-                    f"❌ {section}"
-                )
+                st.error(f"❌ {section}")
 
         st.subheader("📈 Top Resume Keywords")
 
         for word, count in extract_keywords(
             resume_text
         ):
-            st.write(
-                f"{word} ({count})"
-            )
+            st.write(f"{word} ({count})")
 
         st.subheader("💡 ATS Suggestions")
 
         if missing_skills:
-
             st.info(
-                "Add missing skills from Job Description."
+                "Add missing skills from the Job Description."
             )
 
         if ats_score < 60:
-
             st.warning(
                 "Resume needs more relevant keywords."
             )
 
         elif ats_score < 80:
-
             st.info(
                 "Good match. Add more keywords."
             )
 
         else:
-
             st.success(
                 "Excellent ATS Match!"
             )
