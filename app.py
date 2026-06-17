@@ -4,735 +4,197 @@ import re
 import nltk
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import matplotlib.pyplot as plt
-
 from wordcloud import WordCloud
 from collections import Counter
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
-# -------------------------
-# NLTK DOWNLOAD
-# -------------------------
-
+# ---------------- NLTK ---------------- #
 nltk.download("punkt")
 nltk.download("stopwords")
 
-# -------------------------
-# PAGE CONFIG
-# -------------------------
+# ---------------- CONFIG ---------------- #
+st.set_page_config(page_title="AI Resume Analyzer Pro", layout="wide")
 
-st.set_page_config(
-    page_title="AI Resume Analyzer Pro",
-    page_icon="🚀",
-    layout="wide"
-)
+# ---------------- SESSION ---------------- #
+if "page" not in st.session_state:
+    st.session_state.page = "home"
 
-# -------------------------
-# DARK THEME
-# -------------------------
+def go_to(page):
+    st.session_state.page = page
 
+# ---------------- CSS ---------------- #
 st.markdown("""
 <style>
 
-.stApp{
-background-color:#0E1117;
-color:white;
+/* Title on Image */
+.center-title {
+    position: relative;
+    text-align: center;
+    color: white;
+    top: -250px;
+    font-size: 42px;
+    font-weight: bold;
 }
 
-[data-testid="stSidebar"]{
-background-color:#161B22;
+/* Feature Cards */
+.feature-box {
+    background: white;
+    color: black;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.2);
 }
 
-.metric-card{
-padding:15px;
-border-radius:12px;
-background:#1C2128;
+/* Buttons */
+.stButton>button {
+    background-color: #4da6ff;
+    color: white;
+    border-radius: 8px;
 }
 
-.skill-box{
-background:#198754;
-padding:8px;
-margin:5px;
-border-radius:10px;
-color:white;
+/* Section Title */
+.section-title {
+    text-align: center;
+    font-size: 30px;
+    font-weight: bold;
+    margin-top: 20px;
 }
 
-.missing-box{
-background:#dc3545;
-padding:8px;
-margin:5px;
-border-radius:10px;
-color:white;
+/* Result Boxes */
+.green-box {
+    background: #d4edda;
+    padding: 15px;
+    border-radius: 10px;
+}
+
+.red-box {
+    background: #f8d7da;
+    padding: 15px;
+    border-radius: 10px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------
-# HEADER
-# -------------------------
-
-st.title("🚀 AI Resume Analyzer Pro")
-
-st.markdown("""
-### Smart ATS Resume Screening Dashboard
-
-Analyze resumes using:
-
-✅ ATS Score
-
-✅ Skill Matching
-
-✅ Missing Keywords
-
-✅ Resume Sections
-
-✅ Word Cloud
-
-✅ Skill Analytics Dashboard
-""")
-
-# -------------------------
-# SIDEBAR
-# -------------------------
-
-with st.sidebar:
-
-    st.image(
-        "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-        width=120
-    )
-
-    st.title("Resume Analyzer")
-
-    st.markdown("---")
-
-    st.markdown("""
-### Features
-
-📊 ATS Score
-
-🎯 Skill Match
-
-📈 Analytics Dashboard
-
-☁ Word Cloud
-
-📥 Download Report
-
-🤖 AI Suggestions
-""")
-
-    st.markdown("---")
-
-    st.info(
-        "Upload Resume PDF and compare it with Job Description."
-    )
-    # -------------------------
-# PDF TEXT EXTRACTION
-# -------------------------
-
-def extract_text_from_pdf(uploaded_file):
-
-    try:
-
-        pdf_reader = PyPDF2.PdfReader(uploaded_file)
-
-        text = ""
-
-        for page in pdf_reader.pages:
-
-            page_text = page.extract_text()
-
-            if page_text:
-                text += page_text
-
-        return text
-
-    except Exception as e:
-
-        st.error(f"PDF Error: {e}")
-
-        return ""
-
-
-# -------------------------
-# TEXT CLEANING
-# -------------------------
+# ---------------- FUNCTIONS ---------------- #
+def extract_text_from_pdf(file):
+    pdf = PyPDF2.PdfReader(file)
+    text = ""
+    for page in pdf.pages:
+        if page.extract_text():
+            text += page.extract_text()
+    return text
 
 def clean_text(text):
-
     text = text.lower()
-
-    text = re.sub(
-        r"[^a-zA-Z0-9\s]",
-        " ",
-        text
-    )
-
+    text = re.sub(r"[^a-zA-Z0-9\s]", " ", text)
     words = word_tokenize(text)
-
-    stop_words = set(
-        stopwords.words("english")
-    )
-
-    words = [
-        word
-        for word in words
-        if word not in stop_words
-    ]
-
+    stop_words = set(stopwords.words("english"))
+    words = [w for w in words if w not in stop_words]
     return " ".join(words)
 
-
-# -------------------------
-# SKILL DATABASE
-# -------------------------
+def calculate_similarity(resume, jd):
+    vec = TfidfVectorizer()
+    tfidf = vec.fit_transform([clean_text(resume), clean_text(jd)])
+    return round(cosine_similarity(tfidf[0:1], tfidf[1:2])[0][0] * 100, 2)
 
 def get_skills():
+    return ["python","sql","machine learning","deep learning","pandas","numpy","excel","aws","docker","git"]
 
-    return [
-
-        "python",
-        "java",
-        "sql",
-        "mysql",
-        "postgresql",
-        "html",
-        "css",
-        "javascript",
-        "react",
-        "nodejs",
-        "django",
-        "flask",
-        "streamlit",
-        "machine learning",
-        "deep learning",
-        "tensorflow",
-        "pytorch",
-        "pandas",
-        "numpy",
-        "opencv",
-        "data science",
-        "power bi",
-        "excel",
-        "aws",
-        "azure",
-        "docker",
-        "git",
-        "github",
-        "linux",
-        "api",
-        "rest api"
-    ]
-
-
-# -------------------------
-# SIMILARITY
-# -------------------------
-
-def calculate_similarity(
-    resume_text,
-    job_description
-):
-
-    resume_processed = clean_text(
-        resume_text
-    )
-
-    job_processed = clean_text(
-        job_description
-    )
-
-    vectorizer = TfidfVectorizer()
-
-    tfidf_matrix = vectorizer.fit_transform(
-        [
-            resume_processed,
-            job_processed
-        ]
-    )
-
-    similarity = cosine_similarity(
-        tfidf_matrix[0:1],
-        tfidf_matrix[1:2]
-    )[0][0]
-
-    return round(
-        similarity * 100,
-        2
-    )
-
-
-# -------------------------
-# SKILL MATCHING
-# -------------------------
-
-def get_skill_match(
-    resume_text,
-    job_description
-):
-
+def get_skill_match(resume, jd):
     skills = get_skills()
-
-    resume_text = resume_text.lower()
-
-    job_description = job_description.lower()
-
-    resume_skills = [
-
-        skill
-
-        for skill in skills
-
-        if skill in resume_text
-    ]
-
-    jd_skills = [
-
-        skill
-
-        for skill in skills
-
-        if skill in job_description
-    ]
-
-    matched = list(
-        set(resume_skills)
-        &
-        set(jd_skills)
-    )
-
-    missing = list(
-        set(jd_skills)
-        -
-        set(resume_skills)
-    )
-
+    resume = resume.lower()
+    jd = jd.lower()
+    matched = [s for s in skills if s in resume and s in jd]
+    missing = [s for s in skills if s in jd and s not in resume]
     return matched, missing
 
-
-# -------------------------
-# ATS SCORE
-# -------------------------
-
-def calculate_ats_score(
-    similarity,
-    matched,
-    missing
-):
-
-    total_skills = (
-        len(matched)
-        +
-        len(missing)
-    )
-
-    if total_skills > 0:
-
-        skill_score = (
-            len(matched)
-            /
-            total_skills
-        ) * 100
-
-    else:
-
-        skill_score = 0
-
-    ats_score = (
-        similarity * 0.6
-        +
-        skill_score * 0.4
-    )
-
-    return (
-        round(ats_score, 2),
-        round(skill_score, 2)
-    )
-
-
-# -------------------------
-# MISSING KEYWORDS
-# -------------------------
-
-def get_missing_keywords(
-    resume_text,
-    job_description
-):
-
-    resume_words = set(
-        clean_text(
-            resume_text
-        ).split()
-    )
-
-    jd_words = set(
-        clean_text(
-            job_description
-        ).split()
-    )
-
-    missing = list(
-        jd_words
-        -
-        resume_words
-    )
-
-    return missing[:25]
-
-
-# -------------------------
-# TOP KEYWORDS
-# -------------------------
+def calculate_ats_score(similarity, matched, missing):
+    total = len(matched) + len(missing)
+    skill_score = (len(matched)/total*100) if total>0 else 0
+    ats = similarity*0.6 + skill_score*0.4
+    return round(ats,2), round(skill_score,2)
 
 def extract_keywords(text):
+    words = word_tokenize(clean_text(text))
+    return Counter(words).most_common(10)
 
-    text = clean_text(text)
+# ---------------- HOME ---------------- #
+if st.session_state.page == "home":
+    st.image("image.png", use_column_width=True)
+    st.markdown("<div class='center-title'>🚀 AI Resume Analyzer Pro</div>", unsafe_allow_html=True)
 
-    words = word_tokenize(text)
+    col1, col2, col3 = st.columns(3)
 
-    freq = Counter(words)
+    with col1:
+        st.markdown("<div class='feature-box'>📊 ATS Score</div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown("<div class='feature-box'>🧠 Skill Match</div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown("<div class='feature-box'>❌ Missing Keywords</div>", unsafe_allow_html=True)
 
-    return freq.most_common(15)
+    if st.button("🚀 Start Analysis"):
+        go_to("upload")
 
+# ---------------- UPLOAD ---------------- #
+elif st.session_state.page == "upload":
+    st.image("image1.png", use_column_width=True)
+    st.markdown("<div class='section-title'>📤 Upload Inputs</div>", unsafe_allow_html=True)
 
-# -------------------------
-# RESUME SECTION CHECK
-# -------------------------
+    file = st.file_uploader("📄 Upload Resume PDF", type=["pdf"])
+    jd = st.text_area("📝 Paste Job Description")
 
-def check_resume_sections(
-    resume_text
-):
-
-    resume_text = resume_text.lower()
-
-    sections = {
-
-        "Education":
-        "education" in resume_text,
-
-        "Skills":
-        "skills" in resume_text,
-
-        "Projects":
-        "project" in resume_text,
-
-        "Experience":
-        "experience" in resume_text,
-
-        "Certifications":
-        "certification" in resume_text,
-
-        "Internship":
-        "internship" in resume_text
-
-    }
-
-    return sections
-# -------------------------
-# FILE UPLOAD
-# -------------------------
-
-uploaded_file = st.file_uploader(
-    "📄 Upload Resume PDF",
-    type=["pdf"]
-)
-
-job_description = st.text_area(
-    "📝 Paste Job Description",
-    height=250
-)
-
-# -------------------------
-# ANALYZE BUTTON
-# -------------------------
-
-if st.button("🚀 Analyze Resume"):
-
-    if uploaded_file is None:
-
-        st.warning(
-            "Please upload resume PDF."
-        )
-
-    elif not job_description.strip():
-
-        st.warning(
-            "Please paste Job Description."
-        )
-
-    else:
-
-        resume_text = extract_text_from_pdf(
-            uploaded_file
-        )
-
-        similarity = calculate_similarity(
-            resume_text,
-            job_description
-        )
-
-        matched_skills, missing_skills = get_skill_match(
-            resume_text,
-            job_description
-        )
-
-        ats_score, skill_score = calculate_ats_score(
-            similarity,
-            matched_skills,
-            missing_skills
-        )
-
-        missing_keywords = get_missing_keywords(
-            resume_text,
-            job_description
-        )
-
-        sections = check_resume_sections(
-            resume_text
-        )
-
-        # -------------------------
-        # SCORE DASHBOARD
-        # -------------------------
-
-        st.markdown("---")
-
-        c1, c2, c3 = st.columns(3)
-
-        with c1:
-            st.metric(
-                "🎯 ATS Score",
-                f"{ats_score}%"
-            )
-
-        with c2:
-            st.metric(
-                "📄 Similarity",
-                f"{similarity}%"
-            )
-
-        with c3:
-            st.metric(
-                "🛠 Skill Match",
-                f"{skill_score}%"
-            )
-
-        st.progress(
-            ats_score / 100
-        )
-
-        # -------------------------
-        # PIE CHART
-        # -------------------------
-
-        st.subheader(
-            "📊 Skill Analysis"
-        )
-
-        fig = px.pie(
-            names=["Matched", "Missing"],
-            values=[
-                len(matched_skills),
-                len(missing_skills)
-            ],
-            title="Skill Match Distribution"
-        )
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-        # -------------------------
-        # MATCHED SKILLS
-        # -------------------------
-
-        st.subheader(
-            "✅ Matched Skills"
-        )
-
-        if matched_skills:
-
-            for skill in matched_skills:
-
-                st.success(skill)
-
+    if st.button("🔍 Analyze"):
+        if file and jd:
+            st.session_state.file = file
+            st.session_state.jd = jd
+            go_to("results")
         else:
+            st.warning("Upload file & JD")
 
-            st.warning(
-                "No matched skills found."
-            )
+# ---------------- RESULTS ---------------- #
+elif st.session_state.page == "results":
+    st.image("image2.png", use_column_width=True)
+    st.markdown("<div class='section-title'>📊 Analysis Results</div>", unsafe_allow_html=True)
 
-        # -------------------------
-        # MISSING SKILLS
-        # -------------------------
+    resume = extract_text_from_pdf(st.session_state.file)
+    jd = st.session_state.jd
 
-        st.subheader(
-            "❌ Missing Skills"
-        )
+    similarity = calculate_similarity(resume, jd)
+    matched, missing = get_skill_match(resume, jd)
+    ats, skill = calculate_ats_score(similarity, matched, missing)
 
-        if missing_skills:
+    st.subheader("🎯 ATS Score")
+    st.progress(ats/100)
+    st.success(f"{ats}%")
 
-            for skill in missing_skills:
+    col1, col2 = st.columns(2)
 
-                st.error(skill)
+    with col1:
+        st.markdown("<div class='green-box'><b>Matched Skills</b><br>"+", ".join(matched)+"</div>", unsafe_allow_html=True)
 
-        else:
+    with col2:
+        st.markdown("<div class='red-box'><b>Missing Skills</b><br>"+", ".join(missing)+"</div>", unsafe_allow_html=True)
 
-            st.success(
-                "No missing skills."
-            )
+    st.subheader("📊 Skill Chart")
+    fig = px.pie(names=["Matched","Missing"], values=[len(matched),len(missing)])
+    st.plotly_chart(fig)
 
-        # -------------------------
-        # MISSING KEYWORDS
-        # -------------------------
+    st.subheader("📈 Keywords")
+    df = pd.DataFrame(extract_keywords(resume), columns=["Keyword","Count"])
+    st.dataframe(df)
 
-        st.subheader(
-            "🔍 Missing Keywords"
-        )
+    st.subheader("☁ Word Cloud")
+    wc = WordCloud(width=800, height=400, background_color="white").generate(resume)
+    fig, ax = plt.subplots()
+    ax.imshow(wc)
+    ax.axis("off")
+    st.pyplot(fig)
 
-        for keyword in missing_keywords:
-
-            st.write(
-                f"• {keyword}"
-            )
-
-        # -------------------------
-        # TOP KEYWORDS
-        # -------------------------
-
-        st.subheader(
-            "📈 Top Resume Keywords"
-        )
-
-        keywords = extract_keywords(
-            resume_text
-        )
-
-        df = pd.DataFrame(
-            keywords,
-            columns=[
-                "Keyword",
-                "Count"
-            ]
-        )
-
-        st.dataframe(
-            df,
-            use_container_width=True
-        )
-
-        # -------------------------
-        # BAR CHART
-        # -------------------------
-
-        if len(df) > 0:
-
-            fig2 = px.bar(
-                df,
-                x="Keyword",
-                y="Count",
-                title="Keyword Frequency"
-            )
-
-            st.plotly_chart(
-                fig2,
-                use_container_width=True
-            )
-
-        # -------------------------
-        # WORD CLOUD
-        # -------------------------
-
-        st.subheader(
-            "☁ Resume Word Cloud"
-        )
-
-        cloud = WordCloud(
-            width=1000,
-            height=500,
-            background_color="white"
-        ).generate(
-            resume_text
-        )
-
-        fig3, ax = plt.subplots(
-            figsize=(10, 5)
-        )
-
-        ax.imshow(
-            cloud,
-            interpolation="bilinear"
-        )
-
-        ax.axis("off")
-
-        st.pyplot(fig3)
-
-        # -------------------------
-        # SECTION CHECK
-        # -------------------------
-
-        st.subheader(
-            "📋 Resume Sections"
-        )
-
-        for section, present in sections.items():
-
-            if present:
-
-                st.success(
-                    f"✅ {section}"
-                )
-
-            else:
-
-                st.error(
-                    f"❌ {section}"
-                )
-
-        # -------------------------
-        # ATS FEEDBACK
-        # -------------------------
-
-        st.subheader(
-            "🤖 ATS Suggestions"
-        )
-
-        if ats_score < 60:
-
-            st.error(
-                "Resume needs major improvements."
-            )
-
-        elif ats_score < 80:
-
-            st.warning(
-                "Good resume. Add more JD keywords and skills."
-            )
-
-        else:
-
-            st.success(
-                "Excellent ATS Match!"
-            )
-
-        if missing_skills:
-
-            st.info(
-                "Add missing skills from Job Description."
-            )
-
-        if len(missing_keywords) > 0:
-
-            st.info(
-                "Include important missing keywords."
-            )
+    if st.button("🔄 Analyze Again"):
+        go_to("upload")
